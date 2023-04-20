@@ -185,3 +185,39 @@ func TestFetchKeyByUUID(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.Equal(t, "fake-key-material", resp.KeyMaterial)
 }
+
+func TestCreateAndStoreKeyInKMS(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockKMS := mock_kmsiface.NewMockKMSAPI(ctrl)
+	s := &server{
+		KmsClient: mockKMS,
+	}
+
+	createKeyOutput := &kms.CreateKeyOutput{
+		KeyMetadata: &kms.KeyMetadata{
+			KeyId: aws.String("test-key-id"),
+		},
+	}
+
+	mockKMS.EXPECT().ImportKeyMaterial(gomock.Any()).Return(&kms.ImportKeyMaterialOutput{}, nil)
+
+	mockKMS.EXPECT().CreateKey(gomock.Any()).Return(createKeyOutput, nil)
+
+	req := &pb.CreateAndStoreKeyInKMSRequest{
+		Uuid:        "test-uuid",
+		Alias:       "test-alias",
+		Description: "test-description",
+	}
+
+	resp, err := s.CreateAndStoreKeyInKMS(context.Background(), req)
+
+	if err != nil {
+		t.Errorf("Failed to store 128-bit key in KMS: %v", err)
+	}
+
+	if resp.GetKeyId() != "test-key-id" {
+		t.Errorf("Expected key ID 'test-key-id', got '%s'", resp.GetKeyId())
+	}
+}

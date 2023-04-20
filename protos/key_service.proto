@@ -17,6 +17,16 @@ message CreateKeyRequest {
   string description = 3;
 }
 
+message CreateAndStoreKeyInKMSRequest {
+  string uuid = 1;
+  string alias = 2;
+  string description = 3;
+}
+
+message CreateAndStoreKeyInKMSResponse {
+  string key_id = 1;
+}
+
 message CreateKeyResponse {
   string key_id = 1;
 }

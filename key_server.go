@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"log"
 	"net"
@@ -154,6 +155,58 @@ func fetchKeyMaterialFromKMS(kmsClient kmsiface.KMSAPI, keyID string) (string, e
 	// Assuming that the key material is a plaintext string.
 	keyMaterial := string(output.PublicKey)
 	return keyMaterial, nil
+}
+
+func (s *server) generate128BitKey() ([]byte, error) {
+	key := make([]byte, 16) // 16 bytes * 8 bits/byte = 128 bits
+	_, err := rand.Read(key)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
+func (s *server) CreateAndStoreKeyInKMS(ctx context.Context, req *pb.CreateAndStoreKeyInKMSRequest) (*pb.CreateAndStoreKeyInKMSResponse, error) {
+	// Create an empty KMS key
+	key, err := s.generate128BitKey()
+	if err != nil {
+		return nil, err
+	}
+	createKeyInput := &kms.CreateKeyInput{
+		Description: aws.String(req.Description),
+		Tags: []*kms.Tag{
+			{
+				TagKey:   aws.String("alias"),
+				TagValue: aws.String(req.Alias),
+			},
+			{
+				TagKey:   aws.String("uuid"),
+				TagValue: aws.String(req.Uuid),
+			},
+		},
+	}
+	createKeyOutput, err := s.KmsClient.CreateKey(createKeyInput)
+	if err != nil {
+		return nil, err
+	}
+	keyId := aws.StringValue(createKeyOutput.KeyMetadata.KeyId)
+
+	// Import the 128-bit key material into the KMS key
+	expirationModel := "KEY_MATERIAL_EXPIRES"
+	importKeyMaterialInput := kms.ImportKeyMaterialInput{
+		KeyId:                aws.String(keyId),
+		ImportToken:          []byte{}, // Replace with a valid import token
+		EncryptedKeyMaterial: key,      // The 128-bit key you generated
+		ExpirationModel:      aws.String(expirationModel),
+	}
+	_, err = s.KmsClient.ImportKeyMaterial(&importKeyMaterialInput)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.CreateAndStoreKeyInKMSResponse{
+		KeyId: keyId,
+	}, nil
 }
 
 func main() {
