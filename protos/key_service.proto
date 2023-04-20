@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package key_service;
+
+option go_package = "github.com/clyfar/key_server/protos/key_service";
+
+service KeyService {
+  rpc CreateKey (CreateKeyRequest) returns (CreateKeyResponse);
+  rpc DeleteKey (DeleteKeyRequest) returns (DeleteKeyResponse);
+  rpc SearchKeys (SearchKeysRequest) returns (SearchKeysResponse);
+}
+
+message CreateKeyRequest {
+  string uuid = 1;
+  string alias = 2;
+  string description = 3;
+}
+
+message CreateKeyResponse {
+  string key_id = 1;
+}
+
+message DeleteKeyRequest {
+  string uuid = 1;
+}
+
+message DeleteKeyResponse {
+  bool success = 1;
+}
+
+message SearchKeysRequest {
+  string uuid = 1;
+}
+
+message SearchKeysResponse {
+  repeated string key_ids = 1;
+}
