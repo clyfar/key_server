@@ -6,11 +6,12 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/clyfar/key_server/mocks/mock_kmsiface"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 
-	pb "key_service"
-	mock_kmsiface "key_service/mocks/mock_kmsiface"
+	//mock_kmsiface "github.com/clyfar/key_server/mocks/mock_kmsiface"
+	pb "github.com/clyfar/key_server/protos"
 )
 
 func TestCreateKey(t *testing.T) {
@@ -18,7 +19,7 @@ func TestCreateKey(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockKMS := mock_kmsiface.NewMockKMSAPI(ctrl)
-	s := server{kmsClient: mockKMS}
+	s := server{KmsClient: mockKMS}
 
 	mockKMS.EXPECT().CreateKey(gomock.Any()).DoAndReturn(func(input *kms.CreateKeyInput) (*kms.CreateKeyOutput, error) {
 		assert.NotNil(t, input.Description)
@@ -50,7 +51,7 @@ func TestDeleteKey(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockKMS := mock_kmsiface.NewMockKMSAPI(ctrl)
-	s := server{kmsClient: mockKMS}
+	s := server{KmsClient: mockKMS}
 
 	mockKMS.EXPECT().ListKeysPages(gomock.Any(), gomock.Any()).DoAndReturn(func(input *kms.ListKeysInput, fn func(*kms.ListKeysOutput, bool) bool) error {
 		fn(&kms.ListKeysOutput{Keys: []*kms.KeyListEntry{
@@ -78,8 +79,8 @@ func TestDeleteKey(t *testing.T) {
 		Uuid: "test-uuid",
 	}
 
-	resp, err := s
-	DeleteKey(context.Background(), req)
+	var resp *pb.DeleteKeyResponse
+	resp, err := s.DeleteKey(context.Background(), req)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
@@ -91,7 +92,7 @@ func TestSearchKeys(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockKMS := mock_kmsiface.NewMockKMSAPI(ctrl)
-	s := server{kmsClient: mockKMS}
+	s := server{KmsClient: mockKMS}
 
 	mockKMS.EXPECT().ListKeysPages(gomock.Any(), gomock.Any()).DoAndReturn(func(input *kms.ListKeysInput, fn func(*kms.ListKeysOutput, bool) bool) error {
 		fn(&kms.ListKeysOutput{Keys: []*kms.KeyListEntry{

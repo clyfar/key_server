@@ -2,12 +2,14 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"net"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kms"
+	"github.com/aws/aws-sdk-go/service/kms/kmsiface"
 	"google.golang.org/grpc"
 
 	pb "github.com/clyfar/key_server/protos"
@@ -15,7 +17,8 @@ import (
 
 type server struct {
 	pb.UnimplementedKeyServiceServer
-	kmsClient *kms.KMS
+	KmsClient kmsiface.KMSAPI
+	//kmsClient *kms.KMS
 }
 
 func (s *server) CreateKey(ctx context.Context, req *pb.CreateKeyRequest) (*pb.CreateKeyResponse, error) {
@@ -33,7 +36,7 @@ func (s *server) CreateKey(ctx context.Context, req *pb.CreateKeyRequest) (*pb.C
 		},
 	}
 
-	result, err := s.kmsClient.CreateKey(input)
+	result, err := s.KmsClient.CreateKey(input)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +57,7 @@ func (s *server) DeleteKey(ctx context.Context, req *pb.DeleteKeyRequest) (*pb.D
 		PendingWindowInDays: aws.Int64(7),
 	}
 
-	_, err = s.kmsClient.ScheduleKeyDeletion(input)
+	_, err = s.KmsClient.ScheduleKeyDeletion(input)
 	if err != nil {
 		return nil, err
 	}
@@ -77,16 +80,16 @@ func (s *server) findKeyByUUID(uuid string) (string, error) {
 	input := &kms.ListKeysInput{}
 	var keyId string
 
-	err := s.kmsClient.ListKeysPages(input, func(page *kms.ListKeysOutput, lastPage bool) bool {
+	err := s.KmsClient.ListKeysPages(input, func(page *kms.ListKeysOutput, lastPage bool) bool {
 		for _, key := range page.Keys {
 			metadataInput := &kms.DescribeKeyInput{KeyId: key.KeyId}
-			metadataOutput, err := s.kmsClient.DescribeKey(metadataInput)
+			metadataOutput, err := s.KmsClient.DescribeKey(metadataInput)
 			if err != nil {
 				continue
 			}
 
 			keyMetadata := metadataOutput.KeyMetadata
-			keyTagsOutput, err := s.kmsClient.ListResourceTags(&kms.ListResourceTagsInput{KeyId: keyMetadata.KeyId})
+			keyTagsOutput, err := s.KmsClient.ListResourceTags(&kms.ListResourceTagsInput{KeyId: keyMetadata.KeyId})
 			if err != nil {
 				continue
 			}
@@ -126,9 +129,9 @@ func main() {
 		log.Fatalf("failed to create AWS session: %v", err)
 	}
 
-	kmsClient := kms.New(awsSession)
+	KmsClient := kms.New(awsSession)
 
-	pb.RegisterKeyServiceServer(s, &server{kmsClient: kmsClient})
+	pb.RegisterKeyServiceServer(s, &server{KmsClient: KmsClient})
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
