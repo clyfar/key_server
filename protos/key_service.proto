@@ -35,3 +35,11 @@ message SearchKeysRequest {
 message SearchKeysResponse {
   repeated string key_ids = 1;
 }
+
+message FetchKeyByIDRequest {
+    string key_id = 1;
+}
+
+message FetchKeyByIDResponse {
+    string key_material = 1;
+}

@@ -120,3 +120,33 @@ func TestSearchKeys(t *testing.T) {
 	assert.Equal(t, 1, len(resp.KeyIds))
 	assert.Equal(t, "test-key-id", resp.KeyIds[0])
 }
+
+func TestFetchKeyByID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockKMS := mock_kmsiface.NewMockKMSAPI(ctrl)
+	s := server{KmsClient: mockKMS}
+
+	// Replace this with the actual AWS KMS code to fetch the key material.
+	// This is just an example.
+	keyID := "test-key-id"
+	keyMaterial := "fake-key-material"
+
+	req := &pb.FetchKeyByIDRequest{
+		KeyId: keyID,
+	}
+
+	// Expect the `GetPublicKey` function to be called with the specified key ID.
+	mockKMS.EXPECT().GetPublicKey(gomock.Any()).DoAndReturn(func(input *kms.GetPublicKeyInput) (*kms.GetPublicKeyOutput, error) {
+		assert.NotNil(t, input.KeyId)
+		assert.Equal(t, keyID, *input.KeyId)
+		return &kms.GetPublicKeyOutput{PublicKey: []byte(keyMaterial)}, nil
+	})
+
+	resp, err := s.FetchKeyByID(context.Background(), req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, keyMaterial, resp.KeyMaterial)
+}

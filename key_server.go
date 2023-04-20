@@ -115,6 +115,31 @@ func (s *server) findKeyByUUID(uuid string) (string, error) {
 	return keyId, nil
 }
 
+func (s *server) FetchKeyByID(ctx context.Context, in *pb.FetchKeyByIDRequest) (*pb.FetchKeyByIDResponse, error) {
+	keyID := in.GetKeyId()
+	// Use the AWS KMS client to fetch the key material by ID.
+	// Assuming that the key material is a plaintext string.
+	keyMaterial, err := fetchKeyMaterialFromKMS(s.KmsClient, keyID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.FetchKeyByIDResponse{KeyMaterial: keyMaterial}, nil
+}
+
+func fetchKeyMaterialFromKMS(kmsClient kmsiface.KMSAPI, keyID string) (string, error) {
+	// Replace this with the actual AWS KMS code to fetch the key material.
+	// This is just an example.
+	output, err := kmsClient.GetPublicKey(&kms.GetPublicKeyInput{KeyId: &keyID})
+	if err != nil {
+		return "", err
+	}
+
+	// Assuming that the key material is a plaintext string.
+	keyMaterial := string(output.PublicKey)
+	return keyMaterial, nil
+}
+
 func main() {
 	lis, err := net.Listen("tcp", "localhost:50051")
 	if err != nil {
