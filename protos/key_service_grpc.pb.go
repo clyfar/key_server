@@ -4,7 +4,7 @@
 // - protoc             v3.21.12
 // source: protos/key_service.proto
 
-package key_service
+package protos
 
 import (
 	context "context"

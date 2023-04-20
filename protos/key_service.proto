@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package key_service;
 
-option go_package = "github.com/clyfar/key_server/protos/key_service";
+option go_package = "github.com/clyfar/key_server/protos";
 
 service KeyService {
   rpc CreateKey (CreateKeyRequest) returns (CreateKeyResponse);

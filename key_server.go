@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/kms"
 	"google.golang.org/grpc"
 
-	pb "github.com/clyfar/key_server/protos/key_service"
+	pb "github.com/clyfar/key_server/protos"
 )
 
 type server struct {
