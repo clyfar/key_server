@@ -19,9 +19,10 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	KeyService_CreateKey_FullMethodName  = "/key_service.KeyService/CreateKey"
-	KeyService_DeleteKey_FullMethodName  = "/key_service.KeyService/DeleteKey"
-	KeyService_SearchKeys_FullMethodName = "/key_service.KeyService/SearchKeys"
+	KeyService_CreateKey_FullMethodName      = "/key_service.KeyService/CreateKey"
+	KeyService_DeleteKey_FullMethodName      = "/key_service.KeyService/DeleteKey"
+	KeyService_SearchKeys_FullMethodName     = "/key_service.KeyService/SearchKeys"
+	KeyService_FetchKeyByUUID_FullMethodName = "/key_service.KeyService/FetchKeyByUUID"
 )
 
 // KeyServiceClient is the client API for KeyService service.
@@ -31,6 +32,7 @@ type KeyServiceClient interface {
 	CreateKey(ctx context.Context, in *CreateKeyRequest, opts ...grpc.CallOption) (*CreateKeyResponse, error)
 	DeleteKey(ctx context.Context, in *DeleteKeyRequest, opts ...grpc.CallOption) (*DeleteKeyResponse, error)
 	SearchKeys(ctx context.Context, in *SearchKeysRequest, opts ...grpc.CallOption) (*SearchKeysResponse, error)
+	FetchKeyByUUID(ctx context.Context, in *FetchKeyByUUIDRequest, opts ...grpc.CallOption) (*FetchKeyByUUIDResponse, error)
 }
 
 type keyServiceClient struct {
@@ -68,6 +70,15 @@ func (c *keyServiceClient) SearchKeys(ctx context.Context, in *SearchKeysRequest
 	return out, nil
 }
 
+func (c *keyServiceClient) FetchKeyByUUID(ctx context.Context, in *FetchKeyByUUIDRequest, opts ...grpc.CallOption) (*FetchKeyByUUIDResponse, error) {
+	out := new(FetchKeyByUUIDResponse)
+	err := c.cc.Invoke(ctx, KeyService_FetchKeyByUUID_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // KeyServiceServer is the server API for KeyService service.
 // All implementations must embed UnimplementedKeyServiceServer
 // for forward compatibility
@@ -75,6 +86,7 @@ type KeyServiceServer interface {
 	CreateKey(context.Context, *CreateKeyRequest) (*CreateKeyResponse, error)
 	DeleteKey(context.Context, *DeleteKeyRequest) (*DeleteKeyResponse, error)
 	SearchKeys(context.Context, *SearchKeysRequest) (*SearchKeysResponse, error)
+	FetchKeyByUUID(context.Context, *FetchKeyByUUIDRequest) (*FetchKeyByUUIDResponse, error)
 	mustEmbedUnimplementedKeyServiceServer()
 }
 
@@ -90,6 +102,9 @@ func (UnimplementedKeyServiceServer) DeleteKey(context.Context, *DeleteKeyReques
 }
 func (UnimplementedKeyServiceServer) SearchKeys(context.Context, *SearchKeysRequest) (*SearchKeysResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SearchKeys not implemented")
+}
+func (UnimplementedKeyServiceServer) FetchKeyByUUID(context.Context, *FetchKeyByUUIDRequest) (*FetchKeyByUUIDResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchKeyByUUID not implemented")
 }
 func (UnimplementedKeyServiceServer) mustEmbedUnimplementedKeyServiceServer() {}
 
@@ -158,6 +173,24 @@ func _KeyService_SearchKeys_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _KeyService_FetchKeyByUUID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchKeyByUUIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KeyServiceServer).FetchKeyByUUID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KeyService_FetchKeyByUUID_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KeyServiceServer).FetchKeyByUUID(ctx, req.(*FetchKeyByUUIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // KeyService_ServiceDesc is the grpc.ServiceDesc for KeyService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -176,6 +209,10 @@ var KeyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SearchKeys",
 			Handler:    _KeyService_SearchKeys_Handler,
+		},
+		{
+			MethodName: "FetchKeyByUUID",
+			Handler:    _KeyService_FetchKeyByUUID_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -127,6 +127,22 @@ func (s *server) FetchKeyByID(ctx context.Context, in *pb.FetchKeyByIDRequest) (
 	return &pb.FetchKeyByIDResponse{KeyMaterial: keyMaterial}, nil
 }
 
+func (s *server) FetchKeyByUUID(ctx context.Context, in *pb.FetchKeyByUUIDRequest) (*pb.FetchKeyByUUIDResponse, error) {
+	uuid := in.GetUuid()
+	keyID, err := s.findKeyByUUID(uuid)
+	if err != nil {
+		return nil, err
+	}
+
+	fetchKeyByIDReq := &pb.FetchKeyByIDRequest{KeyId: keyID}
+	fetchKeyByIDResp, err := s.FetchKeyByID(ctx, fetchKeyByIDReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return &pb.FetchKeyByUUIDResponse{KeyMaterial: fetchKeyByIDResp.GetKeyMaterial()}, nil
+}
+
 func fetchKeyMaterialFromKMS(kmsClient kmsiface.KMSAPI, keyID string) (string, error) {
 	// Replace this with the actual AWS KMS code to fetch the key material.
 	// This is just an example.

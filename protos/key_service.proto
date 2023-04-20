@@ -8,6 +8,7 @@ service KeyService {
   rpc CreateKey (CreateKeyRequest) returns (CreateKeyResponse);
   rpc DeleteKey (DeleteKeyRequest) returns (DeleteKeyResponse);
   rpc SearchKeys (SearchKeysRequest) returns (SearchKeysResponse);
+  rpc FetchKeyByUUID (FetchKeyByUUIDRequest) returns (FetchKeyByUUIDResponse);
 }
 
 message CreateKeyRequest {
@@ -41,5 +42,13 @@ message FetchKeyByIDRequest {
 }
 
 message FetchKeyByIDResponse {
+    string key_material = 1;
+}
+
+message FetchKeyByUUIDRequest {
+    string uuid = 1;
+}
+
+message FetchKeyByUUIDResponse {
     string key_material = 1;
 }

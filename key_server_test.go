@@ -150,3 +150,38 @@ func TestFetchKeyByID(t *testing.T) {
 	assert.NotNil(t, resp)
 	assert.Equal(t, keyMaterial, resp.KeyMaterial)
 }
+
+func TestFetchKeyByUUID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockKMS := mock_kmsiface.NewMockKMSAPI(ctrl)
+	s := server{KmsClient: mockKMS}
+
+	mockKMS.EXPECT().ListKeysPages(gomock.Any(), gomock.Any()).DoAndReturn(func(input *kms.ListKeysInput, fn func(*kms.ListKeysOutput, bool) bool) error {
+		fn(&kms.ListKeysOutput{Keys: []*kms.KeyListEntry{
+			{KeyId: aws.String("test-key-id")},
+		}}, true)
+		return nil
+	})
+
+	mockKMS.EXPECT().DescribeKey(gomock.Any()).Return(&kms.DescribeKeyOutput{KeyMetadata: &kms.KeyMetadata{KeyId: aws.String("test-key-id")}}, nil)
+
+	mockKMS.EXPECT().ListResourceTags(gomock.Any()).Return(&kms.ListResourceTagsOutput{
+		Tags: []*kms.Tag{
+			{TagKey: aws.String("uuid"), TagValue: aws.String("test-uuid")},
+		},
+	}, nil)
+
+	mockKMS.EXPECT().GetPublicKey(gomock.Any()).Return(&kms.GetPublicKeyOutput{PublicKey: []byte("fake-key-material")}, nil)
+
+	req := &pb.FetchKeyByUUIDRequest{
+		Uuid: "test-uuid",
+	}
+
+	resp, err := s.FetchKeyByUUID(context.Background(), req)
+
+	assert.NoError(t, err)
+	assert.NotNil(t, resp)
+	assert.Equal(t, "fake-key-material", resp.KeyMaterial)
+}
