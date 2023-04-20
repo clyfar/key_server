@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -204,6 +207,21 @@ func TestCreateAndStoreKeyInKMS(t *testing.T) {
 	mockKMS.EXPECT().ImportKeyMaterial(gomock.Any()).Return(&kms.ImportKeyMaterialOutput{}, nil)
 
 	mockKMS.EXPECT().CreateKey(gomock.Any()).Return(createKeyOutput, nil)
+
+	importToken := make([]byte, 128) // A 128-byte long import token
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate RSA key: %v", err)
+	}
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&rsaKey.PublicKey)
+	if err != nil {
+		t.Fatalf("failed to marshal RSA public key: %v", err)
+	}
+
+	mockKMS.EXPECT().GetParametersForImport(gomock.Any()).Return(&kms.GetParametersForImportOutput{
+		ImportToken: importToken,
+		PublicKey:   publicKeyBytes,
+	}, nil)
 
 	req := &pb.CreateAndStoreKeyInKMSRequest{
 		Uuid:        "test-uuid",

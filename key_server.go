@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -166,12 +170,32 @@ func (s *server) generate128BitKey() ([]byte, error) {
 	return key, nil
 }
 
-func (s *server) CreateAndStoreKeyInKMS(ctx context.Context, req *pb.CreateAndStoreKeyInKMSRequest) (*pb.CreateAndStoreKeyInKMSResponse, error) {
-	// Create an empty KMS key
-	key, err := s.generate128BitKey()
+func (s *server) wrapKeyMaterial(keyMaterial []byte, publicKeyBytes []byte, importToken []byte) ([]byte, error) {
+	// Parse the public key
+	publicKey, err := x509.ParsePKIXPublicKey(publicKeyBytes)
 	if err != nil {
 		return nil, err
 	}
+
+	rsaPublicKey, ok := publicKey.(*rsa.PublicKey)
+	if !ok {
+		return nil, errors.New("public key is not an RSA key")
+	}
+
+	// Generate a label for the OAEP padding, which is the SHA-256 hash of the import token
+	label := sha256.Sum256(importToken)
+
+	// Encrypt the key material using RSA-OAEP with SHA-256
+	wrappedKey, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, rsaPublicKey, keyMaterial, label[:])
+	if err != nil {
+		return nil, err
+	}
+
+	return wrappedKey, nil
+}
+
+func (s *server) CreateAndStoreKeyInKMS(ctx context.Context, req *pb.CreateAndStoreKeyInKMSRequest) (*pb.CreateAndStoreKeyInKMSResponse, error) {
+	// Create an empty KMS key
 	createKeyInput := &kms.CreateKeyInput{
 		Description: aws.String(req.Description),
 		Tags: []*kms.Tag{
@@ -191,13 +215,35 @@ func (s *server) CreateAndStoreKeyInKMS(ctx context.Context, req *pb.CreateAndSt
 	}
 	keyId := aws.StringValue(createKeyOutput.KeyMetadata.KeyId)
 
-	// Import the 128-bit key material into the KMS key
-	expirationModel := "KEY_MATERIAL_EXPIRES"
+	// Generate a 128-bit key
+	key, err := s.generate128BitKey()
+	if err != nil {
+		return nil, err
+	}
+
+	// Get parameters for import
+	getParamsInput := &kms.GetParametersForImportInput{
+		KeyId:             aws.String(keyId),
+		WrappingAlgorithm: aws.String("RSAES_OAEP_SHA_256"), // Use a supported wrapping algorithm
+		WrappingKeySpec:   aws.String("RSA_2048"),           // Use a supported wrapping key spec
+	}
+	getParamsOutput, err := s.KmsClient.GetParametersForImport(getParamsInput)
+	if err != nil {
+		return nil, err
+	}
+
+	// Wrap the key material
+	wrappedKey, err := s.wrapKeyMaterial(key, getParamsOutput.PublicKey, getParamsOutput.ImportToken)
+	if err != nil {
+		return nil, err
+	}
+
+	// Import the wrapped key material into the KMS key
 	importKeyMaterialInput := kms.ImportKeyMaterialInput{
 		KeyId:                aws.String(keyId),
-		ImportToken:          []byte{}, // Replace with a valid import token
-		EncryptedKeyMaterial: key,      // The 128-bit key you generated
-		ExpirationModel:      aws.String(expirationModel),
+		ImportToken:          getParamsOutput.ImportToken,
+		EncryptedKeyMaterial: wrappedKey,
+		ExpirationModel:      aws.String("KEY_MATERIAL_EXPIRES"),
 	}
 	_, err = s.KmsClient.ImportKeyMaterial(&importKeyMaterialInput)
 	if err != nil {
