@@ -194,6 +194,32 @@ func (s *server) wrapKeyMaterial(keyMaterial []byte, publicKeyBytes []byte, impo
 	return wrappedKey, nil
 }
 
+func (s *server) unwrapKeyMaterial(wrappedKey []byte, privateKey *rsa.PrivateKey, importToken []byte) ([]byte, error) {
+	// Generate a label for the OAEP padding, which is the SHA-256 hash of the import token
+	label := sha256.Sum256(importToken)
+
+	// Decrypt the key material using RSA-OAEP with SHA-256
+	unwrappedKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, wrappedKey, label[:])
+	if err != nil {
+		return nil, err
+	}
+
+	return unwrappedKey, nil
+}
+
+func (s *server) fetchAndUnwrapKeyMaterial(ctx context.Context, keyId string, privateKey *rsa.PrivateKey, importToken []byte, wrappedKeyMaterial []byte) ([]byte, error) {
+	// Generate a label for the OAEP padding, which is the SHA-256 hash of the import token
+	label := sha256.Sum256(importToken)
+
+	// Decrypt the key material using RSA-OAEP with SHA-256
+	unwrappedKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, wrappedKeyMaterial, label[:])
+	if err != nil {
+		return nil, err
+	}
+
+	return unwrappedKey, nil
+}
+
 func (s *server) CreateAndStoreKeyInKMS(ctx context.Context, req *pb.CreateAndStoreKeyInKMSRequest) (*pb.CreateAndStoreKeyInKMSResponse, error) {
 	// Create an empty KMS key
 	createKeyInput := &kms.CreateKeyInput{

@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"reflect"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -237,5 +238,107 @@ func TestCreateAndStoreKeyInKMS(t *testing.T) {
 
 	if resp.GetKeyId() != "test-key-id" {
 		t.Errorf("Expected key ID 'test-key-id', got '%s'", resp.GetKeyId())
+	}
+}
+
+func TestWrapAndUnwrapKeyMaterial(t *testing.T) {
+	// Generate a 128-bit key
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	if err != nil {
+		t.Fatalf("Failed to generate key: %v", err)
+	}
+
+	// Generate an RSA key pair for testing
+	rsaKeyPair, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key pair: %v", err)
+	}
+
+	// Generate a random import token for testing
+	importToken := make([]byte, 32)
+	_, err = rand.Read(importToken)
+	if err != nil {
+		t.Fatalf("Failed to generate import token: %v", err)
+	}
+
+	// Convert the RSA public key to a byte slice
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&rsaKeyPair.PublicKey)
+	if err != nil {
+		t.Fatalf("Failed to marshal public key: %v", err)
+	}
+
+	// Create a server instance for testing
+	s := &server{}
+
+	// Wrap the key material
+	wrappedKeyMaterial, err := s.wrapKeyMaterial(key, publicKeyBytes, importToken)
+	if err != nil {
+		t.Fatalf("Failed to wrap key material: %v", err)
+	}
+
+	// Assume that the wrapped key material is stored in the KMS under a keyId
+	keyId := "test-key-id"
+
+	// Fetch and unwrap the key material
+	unwrappedKey, err := s.fetchAndUnwrapKeyMaterial(context.Background(), keyId, rsaKeyPair, importToken, wrappedKeyMaterial)
+	if err != nil {
+		t.Fatalf("Failed to unwrap key material: %v", err)
+	}
+
+	// Check if the original key and the unwrapped key are the same
+	if !reflect.DeepEqual(key, unwrappedKey) {
+		t.Fatalf("Original key and unwrapped key do not match: %v != %v", key, unwrappedKey)
+	}
+}
+
+func TestFetchAndUnwrapKeyMaterial(t *testing.T) {
+	// Generate a 128-bit key
+	key := make([]byte, 16)
+	_, err := rand.Read(key)
+	if err != nil {
+		t.Fatalf("Failed to generate key: %v", err)
+	}
+
+	// Generate an RSA key pair for testing
+	rsaKeyPair, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("Failed to generate RSA key pair: %v", err)
+	}
+
+	// Generate a random import token for testing
+	importToken := make([]byte, 32)
+	_, err = rand.Read(importToken)
+	if err != nil {
+		t.Fatalf("Failed to generate import token: %v", err)
+	}
+
+	// Convert the RSA public key to a byte slice
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&rsaKeyPair.PublicKey)
+	if err != nil {
+		t.Fatalf("Failed to marshal public key: %v", err)
+	}
+
+	// Create a server instance for testing
+	s := &server{}
+
+	// Wrap the key material
+	wrappedKeyMaterial, err := s.wrapKeyMaterial(key, publicKeyBytes, importToken)
+	if err != nil {
+		t.Fatalf("Failed to wrap key material: %v", err)
+	}
+
+	// Assume that the wrapped key material is stored in the KMS under a keyId
+	keyId := "test-key-id"
+
+	// Fetch and unwrap the key material
+	unwrappedKey, err := s.fetchAndUnwrapKeyMaterial(context.Background(), keyId, rsaKeyPair, importToken, wrappedKeyMaterial)
+	if err != nil {
+		t.Fatalf("Failed to fetch and unwrap key material: %v", err)
+	}
+
+	// Check if the original key and the unwrapped key are the same
+	if !reflect.DeepEqual(key, unwrappedKey) {
+		t.Fatalf("Original key and unwrapped key do not match: %v != %v", key, unwrappedKey)
 	}
 }
