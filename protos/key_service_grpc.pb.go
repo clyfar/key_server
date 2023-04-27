@@ -19,10 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	KeyService_CreateKey_FullMethodName      = "/key_service.KeyService/CreateKey"
-	KeyService_DeleteKey_FullMethodName      = "/key_service.KeyService/DeleteKey"
-	KeyService_SearchKeys_FullMethodName     = "/key_service.KeyService/SearchKeys"
-	KeyService_FetchKeyByUUID_FullMethodName = "/key_service.KeyService/FetchKeyByUUID"
+	KeyService_CreateKey_FullMethodName         = "/key_service.KeyService/CreateKey"
+	KeyService_DeleteKey_FullMethodName         = "/key_service.KeyService/DeleteKey"
+	KeyService_SearchKeys_FullMethodName        = "/key_service.KeyService/SearchKeys"
+	KeyService_FetchKeyByUUID_FullMethodName    = "/key_service.KeyService/FetchKeyByUUID"
+	KeyService_FetchKeyByID_FullMethodName      = "/key_service.KeyService/FetchKeyByID"
+	KeyService_FetchAndUnwrapKey_FullMethodName = "/key_service.KeyService/FetchAndUnwrapKey"
 )
 
 // KeyServiceClient is the client API for KeyService service.
@@ -33,6 +35,8 @@ type KeyServiceClient interface {
 	DeleteKey(ctx context.Context, in *DeleteKeyRequest, opts ...grpc.CallOption) (*DeleteKeyResponse, error)
 	SearchKeys(ctx context.Context, in *SearchKeysRequest, opts ...grpc.CallOption) (*SearchKeysResponse, error)
 	FetchKeyByUUID(ctx context.Context, in *FetchKeyByUUIDRequest, opts ...grpc.CallOption) (*FetchKeyByUUIDResponse, error)
+	FetchKeyByID(ctx context.Context, in *FetchKeyByIDRequest, opts ...grpc.CallOption) (*FetchKeyByIDResponse, error)
+	FetchAndUnwrapKey(ctx context.Context, in *FetchAndUnwrapKeyRequest, opts ...grpc.CallOption) (*FetchAndUnwrapKeyResponse, error)
 }
 
 type keyServiceClient struct {
@@ -79,6 +83,24 @@ func (c *keyServiceClient) FetchKeyByUUID(ctx context.Context, in *FetchKeyByUUI
 	return out, nil
 }
 
+func (c *keyServiceClient) FetchKeyByID(ctx context.Context, in *FetchKeyByIDRequest, opts ...grpc.CallOption) (*FetchKeyByIDResponse, error) {
+	out := new(FetchKeyByIDResponse)
+	err := c.cc.Invoke(ctx, KeyService_FetchKeyByID_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *keyServiceClient) FetchAndUnwrapKey(ctx context.Context, in *FetchAndUnwrapKeyRequest, opts ...grpc.CallOption) (*FetchAndUnwrapKeyResponse, error) {
+	out := new(FetchAndUnwrapKeyResponse)
+	err := c.cc.Invoke(ctx, KeyService_FetchAndUnwrapKey_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // KeyServiceServer is the server API for KeyService service.
 // All implementations must embed UnimplementedKeyServiceServer
 // for forward compatibility
@@ -87,6 +109,8 @@ type KeyServiceServer interface {
 	DeleteKey(context.Context, *DeleteKeyRequest) (*DeleteKeyResponse, error)
 	SearchKeys(context.Context, *SearchKeysRequest) (*SearchKeysResponse, error)
 	FetchKeyByUUID(context.Context, *FetchKeyByUUIDRequest) (*FetchKeyByUUIDResponse, error)
+	FetchKeyByID(context.Context, *FetchKeyByIDRequest) (*FetchKeyByIDResponse, error)
+	FetchAndUnwrapKey(context.Context, *FetchAndUnwrapKeyRequest) (*FetchAndUnwrapKeyResponse, error)
 	mustEmbedUnimplementedKeyServiceServer()
 }
 
@@ -105,6 +129,12 @@ func (UnimplementedKeyServiceServer) SearchKeys(context.Context, *SearchKeysRequ
 }
 func (UnimplementedKeyServiceServer) FetchKeyByUUID(context.Context, *FetchKeyByUUIDRequest) (*FetchKeyByUUIDResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method FetchKeyByUUID not implemented")
+}
+func (UnimplementedKeyServiceServer) FetchKeyByID(context.Context, *FetchKeyByIDRequest) (*FetchKeyByIDResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchKeyByID not implemented")
+}
+func (UnimplementedKeyServiceServer) FetchAndUnwrapKey(context.Context, *FetchAndUnwrapKeyRequest) (*FetchAndUnwrapKeyResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method FetchAndUnwrapKey not implemented")
 }
 func (UnimplementedKeyServiceServer) mustEmbedUnimplementedKeyServiceServer() {}
 
@@ -191,6 +221,42 @@ func _KeyService_FetchKeyByUUID_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _KeyService_FetchKeyByID_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchKeyByIDRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KeyServiceServer).FetchKeyByID(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KeyService_FetchKeyByID_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KeyServiceServer).FetchKeyByID(ctx, req.(*FetchKeyByIDRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _KeyService_FetchAndUnwrapKey_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FetchAndUnwrapKeyRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(KeyServiceServer).FetchAndUnwrapKey(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: KeyService_FetchAndUnwrapKey_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(KeyServiceServer).FetchAndUnwrapKey(ctx, req.(*FetchAndUnwrapKeyRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // KeyService_ServiceDesc is the grpc.ServiceDesc for KeyService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -213,6 +279,14 @@ var KeyService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FetchKeyByUUID",
 			Handler:    _KeyService_FetchKeyByUUID_Handler,
+		},
+		{
+			MethodName: "FetchKeyByID",
+			Handler:    _KeyService_FetchKeyByID_Handler,
+		},
+		{
+			MethodName: "FetchAndUnwrapKey",
+			Handler:    _KeyService_FetchAndUnwrapKey_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

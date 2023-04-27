@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"reflect"
+	//"encoding/base64"
+	//"fmt"
 	"testing"
+	//"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/kms"
@@ -17,6 +20,14 @@ import (
 	//mock_kmsiface "github.com/clyfar/key_server/mocks/mock_kmsiface"
 	pb "github.com/clyfar/key_server/protos"
 )
+
+type testServer struct {
+	*server
+}
+
+func (s *testServer) wrapKeyMaterial(keyMaterial []byte, publicKeyBytes []byte, importToken []byte) ([]byte, error) {
+	return []byte("fake-wrapped-key-material"), nil
+}
 
 func TestCreateKey(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -241,104 +252,117 @@ func TestCreateAndStoreKeyInKMS(t *testing.T) {
 	}
 }
 
+func createKeyAndImportMaterial(t *testing.T, s *server) ([]byte, []byte, []byte, []byte, error) {
+	req := &pb.CreateAndStoreKeyInKMSRequest{
+		Uuid: "test-uuid",
+	}
+
+	_, err := s.CreateAndStoreKeyInKMS(context.Background(), req)
+	if err != nil {
+		t.Fatalf("failed to create and store key in KMS: %v", err)
+	}
+
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		t.Fatalf("failed to generate RSA key: %v", err)
+	}
+
+	// Convert rsaKey to PKCS1 format
+	privateKeyBytes := x509.MarshalPKCS1PrivateKey(rsaKey)
+
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&rsaKey.PublicKey)
+	if err != nil {
+		t.Fatalf("failed to marshal RSA public key: %v", err)
+	}
+
+	keyMaterial := []byte("fake-128-bit-key")
+	importToken := make([]byte, 128)
+	if _, err := rand.Read(importToken); err != nil {
+		t.Fatalf("failed to generate import token: %v", err)
+	}
+
+	return publicKeyBytes, privateKeyBytes, keyMaterial, importToken, nil
+}
+
 func TestWrapAndUnwrapKeyMaterial(t *testing.T) {
-	// Generate a 128-bit key
-	key := make([]byte, 16)
-	_, err := rand.Read(key)
+	rsaKey, err := rsa.GenerateKey(rand.Reader, 2048)
 	if err != nil {
-		t.Fatalf("Failed to generate key: %v", err)
+		t.Fatalf("failed to generate RSA key: %v", err)
+	}
+	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&rsaKey.PublicKey)
+	if err != nil {
+		t.Fatalf("failed to marshal RSA public key: %v", err)
 	}
 
-	// Generate an RSA key pair for testing
-	rsaKeyPair, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("Failed to generate RSA key pair: %v", err)
-	}
-
-	// Generate a random import token for testing
-	importToken := make([]byte, 32)
-	_, err = rand.Read(importToken)
-	if err != nil {
-		t.Fatalf("Failed to generate import token: %v", err)
-	}
-
-	// Convert the RSA public key to a byte slice
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&rsaKeyPair.PublicKey)
-	if err != nil {
-		t.Fatalf("Failed to marshal public key: %v", err)
-	}
-
-	// Create a server instance for testing
 	s := &server{}
 
-	// Wrap the key material
-	wrappedKeyMaterial, err := s.wrapKeyMaterial(key, publicKeyBytes, importToken)
-	if err != nil {
-		t.Fatalf("Failed to wrap key material: %v", err)
+	keyMaterial := []byte("fake-128-bit-key")
+	importToken := make([]byte, 128)
+	if _, err := rand.Read(importToken); err != nil {
+		t.Fatalf("failed to generate random import token: %v", err)
 	}
 
-	// Assume that the wrapped key material is stored in the KMS under a keyId
-	keyId := "test-key-id"
-
-	// Fetch and unwrap the key material
-	unwrappedKey, err := s.fetchAndUnwrapKeyMaterial(context.Background(), keyId, rsaKeyPair, importToken, wrappedKeyMaterial)
+	wrappedKey, err := s.wrapKeyMaterial(keyMaterial, publicKeyBytes, importToken)
 	if err != nil {
-		t.Fatalf("Failed to unwrap key material: %v", err)
+		t.Fatalf("failed to wrap key material: %v", err)
 	}
 
-	// Check if the original key and the unwrapped key are the same
-	if !reflect.DeepEqual(key, unwrappedKey) {
-		t.Fatalf("Original key and unwrapped key do not match: %v != %v", key, unwrappedKey)
+	unwrappedKey, err := s.unwrapKeyMaterial(wrappedKey, rsaKey, importToken)
+	if err != nil {
+		t.Fatalf("failed to unwrap key material: %v", err)
+	}
+
+	if !bytes.Equal(keyMaterial, unwrappedKey) {
+		t.Errorf("unwrapped key material does not match original key material: got %v, want %v", unwrappedKey, keyMaterial)
 	}
 }
 
-func TestFetchAndUnwrapKeyMaterial(t *testing.T) {
-	// Generate a 128-bit key
-	key := make([]byte, 16)
-	_, err := rand.Read(key)
+func setupMockForFindKeyByUUID(mockKMS *mock_kmsiface.MockKMSAPI, keyID, uuid string) {
+	mockKMS.EXPECT().ListKeysPages(gomock.Any(), gomock.Any()).DoAndReturn(
+		func(input *kms.ListKeysInput, fn func(page *kms.ListKeysOutput, lastPage bool) bool) error {
+			fn(&kms.ListKeysOutput{
+				Keys: []*kms.KeyListEntry{
+					{
+						KeyId: aws.String(keyID),
+					},
+				},
+			}, true)
+			return nil
+		}).Times(1)
+
+	mockKMS.EXPECT().DescribeKey(gomock.Any()).Return(&kms.DescribeKeyOutput{
+		KeyMetadata: &kms.KeyMetadata{
+			KeyId: aws.String(keyID),
+		},
+	}, nil).Times(1)
+
+	mockKMS.EXPECT().ListResourceTags(gomock.Any()).Return(&kms.ListResourceTagsOutput{
+		Tags: []*kms.Tag{
+			{
+				TagKey:   aws.String("uuid"),
+				TagValue: aws.String(uuid),
+			},
+		},
+	}, nil).Times(1)
+}
+
+func TestFindKeyByUUID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockKMS := mock_kmsiface.NewMockKMSAPI(ctrl)
+	s := &server{KmsClient: mockKMS}
+
+	keyID := "test-key-id"
+	uuid := "test-uuid"
+	setupMockForFindKeyByUUID(mockKMS, keyID, uuid)
+
+	foundKeyID, err := s.findKeyByUUID(uuid)
 	if err != nil {
-		t.Fatalf("Failed to generate key: %v", err)
+		t.Fatalf("findKeyByUUID returned an error: %v", err)
 	}
 
-	// Generate an RSA key pair for testing
-	rsaKeyPair, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("Failed to generate RSA key pair: %v", err)
-	}
-
-	// Generate a random import token for testing
-	importToken := make([]byte, 32)
-	_, err = rand.Read(importToken)
-	if err != nil {
-		t.Fatalf("Failed to generate import token: %v", err)
-	}
-
-	// Convert the RSA public key to a byte slice
-	publicKeyBytes, err := x509.MarshalPKIXPublicKey(&rsaKeyPair.PublicKey)
-	if err != nil {
-		t.Fatalf("Failed to marshal public key: %v", err)
-	}
-
-	// Create a server instance for testing
-	s := &server{}
-
-	// Wrap the key material
-	wrappedKeyMaterial, err := s.wrapKeyMaterial(key, publicKeyBytes, importToken)
-	if err != nil {
-		t.Fatalf("Failed to wrap key material: %v", err)
-	}
-
-	// Assume that the wrapped key material is stored in the KMS under a keyId
-	keyId := "test-key-id"
-
-	// Fetch and unwrap the key material
-	unwrappedKey, err := s.fetchAndUnwrapKeyMaterial(context.Background(), keyId, rsaKeyPair, importToken, wrappedKeyMaterial)
-	if err != nil {
-		t.Fatalf("Failed to fetch and unwrap key material: %v", err)
-	}
-
-	// Check if the original key and the unwrapped key are the same
-	if !reflect.DeepEqual(key, unwrappedKey) {
-		t.Fatalf("Original key and unwrapped key do not match: %v != %v", key, unwrappedKey)
+	if foundKeyID != keyID {
+		t.Fatalf("findKeyByUUID returned incorrect key ID, expected %s, got %s", keyID, foundKeyID)
 	}
 }

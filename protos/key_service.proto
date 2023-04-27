@@ -9,6 +9,8 @@ service KeyService {
   rpc DeleteKey (DeleteKeyRequest) returns (DeleteKeyResponse);
   rpc SearchKeys (SearchKeysRequest) returns (SearchKeysResponse);
   rpc FetchKeyByUUID (FetchKeyByUUIDRequest) returns (FetchKeyByUUIDResponse);
+  rpc FetchKeyByID (FetchKeyByIDRequest) returns (FetchKeyByIDResponse);
+  rpc FetchAndUnwrapKey (FetchAndUnwrapKeyRequest) returns (FetchAndUnwrapKeyResponse);
 }
 
 message CreateKeyRequest {
@@ -61,4 +63,15 @@ message FetchKeyByUUIDRequest {
 
 message FetchKeyByUUIDResponse {
     string key_material = 1;
+}
+
+message FetchAndUnwrapKeyRequest {
+  string uuid = 1;
+  string wrapped_private_key = 2;
+  string import_token = 3;
+  bytes rsa_private_key = 4;
+}
+
+message FetchAndUnwrapKeyResponse {
+  string key_material = 1;
 }

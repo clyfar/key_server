@@ -6,10 +6,15 @@ import (
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
+	"encoding/base64"
+	//"encoding/pem"
 	"errors"
 	"fmt"
 	"log"
 	"net"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -207,17 +212,50 @@ func (s *server) unwrapKeyMaterial(wrappedKey []byte, privateKey *rsa.PrivateKey
 	return unwrappedKey, nil
 }
 
-func (s *server) fetchAndUnwrapKeyMaterial(ctx context.Context, keyId string, privateKey *rsa.PrivateKey, importToken []byte, wrappedKeyMaterial []byte) ([]byte, error) {
-	// Generate a label for the OAEP padding, which is the SHA-256 hash of the import token
-	label := sha256.Sum256(importToken)
-
-	// Decrypt the key material using RSA-OAEP with SHA-256
-	unwrappedKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, privateKey, wrappedKeyMaterial, label[:])
+func (s *server) fetchAndUnwrapKey(ctx context.Context, keyUUID string, privateKey *rsa.PrivateKey, importToken []byte) ([]byte, error) {
+	// Call FetchKeyByUUID
+	fetchKeyByUUIDReq := &pb.FetchKeyByUUIDRequest{Uuid: keyUUID}
+	fetchKeyByUUIDResp, err := s.FetchKeyByUUID(ctx, fetchKeyByUUIDReq)
 	if err != nil {
 		return nil, err
 	}
 
-	return unwrappedKey, nil
+	encryptedKeyMaterial := []byte(fetchKeyByUUIDResp.GetKeyMaterial())
+	// Decrypt the encrypted key material
+	keyMaterial, err := s.unwrapKeyMaterial(encryptedKeyMaterial, privateKey, importToken)
+	if err != nil {
+		return nil, err
+	}
+
+	return keyMaterial, nil
+}
+
+func (s *server) FetchAndUnwrapKey(ctx context.Context, req *pb.FetchAndUnwrapKeyRequest) (*pb.FetchAndUnwrapKeyResponse, error) {
+	// Parse the wrapped private key
+	privateKey, err := x509.ParsePKCS1PrivateKey(req.RsaPrivateKey)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to parse private key")
+	}
+	fmt.Print(privateKey)
+	if privateKey == nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid wrapped private key")
+	}
+
+	// Decode the import token
+	importToken, err := base64.StdEncoding.DecodeString(req.ImportToken)
+	if err != nil {
+		return nil, status.Error(codes.InvalidArgument, "Invalid import token")
+	}
+
+	// Call the internal fetchAndUnwrapKey method
+	keyMaterial, err := s.fetchAndUnwrapKey(ctx, req.Uuid, privateKey, importToken)
+	if err != nil {
+		return nil, status.Error(codes.Internal, "Failed to fetch and unwrap key")
+	}
+
+	return &pb.FetchAndUnwrapKeyResponse{
+		KeyMaterial: base64.StdEncoding.EncodeToString(keyMaterial),
+	}, nil
 }
 
 func (s *server) CreateAndStoreKeyInKMS(ctx context.Context, req *pb.CreateAndStoreKeyInKMSRequest) (*pb.CreateAndStoreKeyInKMSResponse, error) {
